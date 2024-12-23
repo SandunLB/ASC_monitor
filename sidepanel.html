@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Adobe Stock Monitor</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+    }
+    .value-container {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .timestamp {
+      color: #666;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+    .status {
+      color: #888;
+      font-style: italic;
+      margin-top: 10px;
+    }
+    .loading {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <h2>File Type Monitor</h2>
+  <div class="value-container">
+    <div id="currentValue">Loading...</div>
+    <div id="timestamp" class="timestamp"></div>
+    <div id="status" class="status"></div>
+  </div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
