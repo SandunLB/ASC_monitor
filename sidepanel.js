@@ -15,6 +15,17 @@ function updateDisplay(value, status = '') {
   statusElement.textContent = status;
 }
 
+// Function to update account details
+function updateAccountDetails(details) {
+  const nameElement = document.getElementById('accountName');
+  const emailElement = document.getElementById('accountEmail');
+  
+  if (details) {
+    nameElement.textContent = `Name: ${details.accountName}`;
+    emailElement.textContent = `Email: ${details.accountEmail}`;
+  }
+}
+
 // Notify background script when panel is opened
 window.addEventListener('load', () => {
   chrome.runtime.sendMessage({ action: "panelOpened" });
@@ -24,14 +35,20 @@ window.addEventListener('load', () => {
 chrome.runtime.onMessage.addListener((request) => {
   if (request.action === "valueUpdated" || request.action === "contentUpdated") {
     updateDisplay(request.value);
+  } else if (request.action === "accountDetailsUpdated") {
+    updateAccountDetails(request.details);
   }
 });
 
 // Load initial value from storage
-chrome.storage.local.get(['buttonValue', 'lastUpdate'], (result) => {
+chrome.storage.local.get(['buttonValue', 'lastUpdate', 'accountDetails'], (result) => {
   if (result.buttonValue) {
     updateDisplay(result.buttonValue);
   } else {
     updateDisplay('Loading...', 'Navigating to Adobe Stock...');
+  }
+  
+  if (result.accountDetails) {
+    updateAccountDetails(result.accountDetails);
   }
 });
