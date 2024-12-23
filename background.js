@@ -77,12 +77,34 @@ async function fetchAndUpdateValue() {
   }
 }
 
-// Listen for side panel opening
+// Function to handle account details storage and broadcasting
+async function handleAccountDetails(details) {
+  try {
+    // Store the account details
+    await chrome.storage.local.set({ 
+      accountDetails: details,
+      accountLastUpdate: new Date().toISOString()
+    });
+    
+    // Broadcast the update to all listeners
+    chrome.runtime.sendMessage({
+      action: "accountDetailsUpdated",
+      details: details,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error handling account details:", error);
+  }
+}
+
+// Listen for messages from content script and side panel
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // Handle panel opened event
   if (request.action === "panelOpened") {
     navigateAndGetValue();
   }
-  // Listen for content script updates
+  
+  // Handle content updates
   if (request.action === "contentUpdated") {
     currentValue = request.value;
     chrome.storage.local.set({ 
@@ -96,10 +118,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       timestamp: new Date().toISOString()
     });
   }
+  
+  // Handle account details updates
+  if (request.action === "accountDetailsUpdated") {
+    handleAccountDetails(request.details);
+  }
 });
 
-// Set up periodic fetching (every minute)
-setInterval(fetchAndUpdateValue, 1000);
+// Function to check if we need to refresh account details
+async function checkAndRefreshAccountDetails() {
+  try {
+    const tabs = await chrome.tabs.query({
+      url: TARGET_URL
+    });
+
+    if (tabs.length > 0) {
+      // Send message to content script to refresh account details
+      await chrome.tabs.sendMessage(tabs[0].id, {
+        action: "refreshAccountDetails"
+      });
+    }
+  } catch (error) {
+    console.error("Error refreshing account details:", error);
+  }
+}
+
+// Set up periodic fetching
+setInterval(() => {
+  fetchAndUpdateValue();
+  checkAndRefreshAccountDetails();
+}, 60000); // Check every minute
 
 // Initial fetch when background script loads
 fetchAndUpdateValue();
