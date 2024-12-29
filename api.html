@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Description Generator</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
+        <h1 class="text-2xl font-bold mb-6 text-center text-gray-800">Image Description Generator</h1>
+        
+        <!-- Input Form -->
+        <div class="space-y-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Gemini API Key
+                </label>
+                <input type="text" id="apiKey" 
+                       class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500" 
+                       placeholder="Enter your Gemini API key">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Select Image
+                </label>
+                <input type="file" id="imageInput" accept="image/*"
+                       class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500">
+            </div>
+        </div>
+
+        <!-- Preview Section -->
+        <div id="previewSection" class="hidden mb-6">
+            <h2 class="text-lg font-semibold mb-2 text-gray-700">Preview</h2>
+            <img id="imagePreview" class="max-w-full h-auto rounded-lg shadow-sm mb-4">
+        </div>
+
+        <button id="generateBtn" 
+                class="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50">
+            Generate Description
+        </button>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden mt-6 space-y-4">
+            <div class="border-t pt-4">
+                <h2 class="text-lg font-semibold mb-2 text-gray-700">Results</h2>
+                
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <div id="titleResult" class="p-2 bg-gray-50 rounded"></div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Keywords</label>
+                        <div id="keywordsResult" class="p-2 bg-gray-50 rounded"></div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <div id="descriptionResult" class="p-2 bg-gray-50 rounded"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="hidden mt-4">
+            <div class="flex items-center justify-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span class="ml-2 text-gray-600">Processing...</span>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="hidden mt-4 p-4 bg-red-50 text-red-700 rounded">
+        </div>
+    </div>
+
+    <script>
+        class ImageDescriptor {
+            constructor(apiKey) {
+                this.apiKey = apiKey;
+                this.API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+            }
+
+            async describeImage(file) {
+                try {
+                    const base64Image = await this.fileToBase64(file);
+                    const base64Data = base64Image.split(',')[1];
+                    const description = await this.generateDescription(base64Data);
+                    return description;
+                } catch (error) {
+                    throw new Error(`Failed to process image: ${error.message}`);
+                }
+            }
+
+            fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('Failed to read file'));
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            async generateDescription(base64Image) {
+                const prompt = `Analyze this image and provide:
+                    1. A creative, short title (max 50 chars)
+                    2. 5-8 relevant keywords separated by commas
+                    3. A brief description (max 200 chars)
+
+                    Format as:
+                    Title: [title]
+                    Keywords: [keywords]
+                    Description: [description]`;
+
+                const requestBody = {
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            {
+                                inline_data: {
+                                    mime_type: "image/jpeg",
+                                    data: base64Image
+                                }
+                            }
+                        ]
+                    }]
+                };
+
+                const response = await fetch(`${this.API_URL}?key=${this.apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    throw new Error('Invalid API response format');
+                }
+
+                return this.parseResponse(data.candidates[0].content.parts[0].text);
+            }
+
+            parseResponse(text) {
+                const titleMatch = text.match(/Title:\s*(.+?)[\n\r]/i);
+                const keywordsMatch = text.match(/Keywords:\s*(.+?)[\n\r]/i);
+                const descriptionMatch = text.match(/Description:\s*(.+?)(?:[\n\r]|$)/i);
+
+                if (!titleMatch || !keywordsMatch || !descriptionMatch) {
+                    throw new Error('Failed to parse API response');
+                }
+
+                return {
+                    title: titleMatch[1].trim(),
+                    keywords: keywordsMatch[1].trim().split(',').map(k => k.trim()),
+                    description: descriptionMatch[1].trim()
+                };
+            }
+        }
+
+        // UI Handler
+        class UIHandler {
+            constructor() {
+                this.initializeElements();
+                this.bindEvents();
+            }
+
+            initializeElements() {
+                this.apiKeyInput = document.getElementById('apiKey');
+                this.imageInput = document.getElementById('imageInput');
+                this.generateBtn = document.getElementById('generateBtn');
+                this.previewSection = document.getElementById('previewSection');
+                this.imagePreview = document.getElementById('imagePreview');
+                this.resultsSection = document.getElementById('resultsSection');
+                this.loadingIndicator = document.getElementById('loadingIndicator');
+                this.errorMessage = document.getElementById('errorMessage');
+                this.titleResult = document.getElementById('titleResult');
+                this.keywordsResult = document.getElementById('keywordsResult');
+                this.descriptionResult = document.getElementById('descriptionResult');
+            }
+
+            bindEvents() {
+                this.imageInput.addEventListener('change', () => this.handleImageSelect());
+                this.generateBtn.addEventListener('click', () => this.generateDescription());
+            }
+
+            handleImageSelect() {
+                const file = this.imageInput.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.imagePreview.src = e.target.result;
+                        this.previewSection.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            async generateDescription() {
+                const apiKey = this.apiKeyInput.value.trim();
+                const file = this.imageInput.files[0];
+
+                if (!apiKey) {
+                    this.showError('Please enter your API key');
+                    return;
+                }
+
+                if (!file) {
+                    this.showError('Please select an image');
+                    return;
+                }
+
+                this.showLoading(true);
+                this.hideError();
+                this.resultsSection.classList.add('hidden');
+
+                try {
+                    const descriptor = new ImageDescriptor(apiKey);
+                    const result = await descriptor.describeImage(file);
+                    this.displayResults(result);
+                } catch (error) {
+                    this.showError(error.message);
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+
+            displayResults(result) {
+                this.titleResult.textContent = result.title;
+                this.keywordsResult.textContent = result.keywords.join(', ');
+                this.descriptionResult.textContent = result.description;
+                this.resultsSection.classList.remove('hidden');
+            }
+
+            showLoading(show) {
+                this.loadingIndicator.classList.toggle('hidden', !show);
+                this.generateBtn.disabled = show;
+            }
+
+            showError(message) {
+                this.errorMessage.textContent = message;
+                this.errorMessage.classList.remove('hidden');
+            }
+
+            hideError() {
+                this.errorMessage.classList.add('hidden');
+            }
+        }
+
+        // Initialize the UI handler when the DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new UIHandler();
+        });
+    </script>
+</body>
+</html>
