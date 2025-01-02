@@ -1,3 +1,4 @@
+// sidepanel.js
 function updateDisplay(value, page = '', status = '') {
   const valueElement = document.getElementById('currentValue');
   const timestampElement = document.getElementById('timestamp');

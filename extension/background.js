@@ -1,3 +1,4 @@
+// background.js
 const REVIEW_URL = 'https://contributor.stock.adobe.com/en/uploads/review';
 const NEW_URL = 'https://contributor.stock.adobe.com/en/uploads';
 let currentValue = '';

@@ -1,8 +1,7 @@
 // background.js
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
-// Function to capture screenshot
-async function captureScreenshot(tabId) {
+async function captureScreenshot(tabId, selector) {
     try {
         // Inject html2canvas
         await chrome.scripting.executeScript({
@@ -10,13 +9,13 @@ async function captureScreenshot(tabId) {
             files: ['html2canvas.min.js']
         });
 
-        // Execute the capture
+        // Execute the capture for the specific selector
         const result = await chrome.scripting.executeScript({
             target: { tabId: tabId },
-            function: async () => {
-                const element = document.querySelector('div[class*="ObjectIdentification"]');
+            func: async (selector) => {
+                const element = document.querySelector(selector);
                 if (!element) {
-                    throw new Error('Target element not found');
+                    return null; // Return null if element not found
                 }
 
                 const canvas = await html2canvas(element, {
@@ -27,11 +26,12 @@ async function captureScreenshot(tabId) {
                 });
 
                 return canvas.toDataURL('image/png');
-            }
+            },
+            args: [selector]
         });
 
-        if (!result || !result[0] || !result[0].result) {
-            throw new Error('Failed to capture screenshot');
+        if (!result || !result[0] || result[0].result === null) {
+            return null;
         }
 
         return result[0].result;
@@ -41,9 +41,7 @@ async function captureScreenshot(tabId) {
     }
 }
 
-// Function to analyze image
-// background.js
-async function analyzeImage(base64Image) {
+async function analyzeGridImage(base64Image) {
     try {
         const apiKey = await new Promise((resolve) => {
             chrome.storage.local.get(['geminiApiKey'], function(result) {
@@ -55,7 +53,6 @@ async function analyzeImage(base64Image) {
             throw new Error('API key not found');
         }
 
-        // Updated prompt to be more explicit about checking each image
         const prompt = `
             This is a grid of 6 images (3 rows x 2 columns), numbered 1 to 6 from left to right, top to bottom.
             Systematically check EACH image (1,2,3,4,5,6) for cats.
@@ -121,19 +118,91 @@ async function analyzeImage(base64Image) {
     }
 }
 
+async function analyzeDescriptionImage(base64Image) {
+    try {
+        const apiKey = await new Promise((resolve) => {
+            chrome.storage.local.get(['geminiApiKey'], function(result) {
+                resolve(result.geminiApiKey);
+            });
+        });
+
+        if (!apiKey) {
+            throw new Error('API key not found');
+        }
+
+        const prompt = `
+            View this image as if you're standing 20 meters away.
+            List only the key visible elements you can see.
+            Format your response exactly like this example: (doctor,smiling,hand,headset,green)
+            Use only simple, single words separated by commas within parentheses.
+            Do not include any other text or explanations.
+        `;
+
+        const response = await fetch(`${API_URL}?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        {
+                            inline_data: {
+                                mime_type: "image/png",
+                                data: base64Image.split(',')[1]
+                            }
+                        }
+                    ]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API request failed: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        let result = data.candidates[0].content.parts[0].text.trim();
+        
+        // Clean up response to ensure format
+        result = result.replace(/\s+/g, '');
+        if (!result.startsWith('(')) result = '(' + result;
+        if (!result.endsWith(')')) result = result + ')';
+        
+        return result;
+    } catch (error) {
+        throw error;
+    }
+}
+
 // Listen for messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "takeScreenshot") {
-        console.log('Taking screenshot...');
+        console.log('Starting analysis process...');
+        
         chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
             try {
-                const base64Image = await captureScreenshot(tabs[0].id);
-                const analysis = await analyzeImage(base64Image);
+                // First capture and analyze grid
+                const gridImage = await captureScreenshot(tabs[0].id, 'div[class*="ObjectIdentification"]');
+                let finalResult = {};
                 
-                // Send result back to sidebar
+                if (gridImage) {
+                    const gridAnalysis = await analyzeGridImage(gridImage);
+                    finalResult.gridResult = gridAnalysis;
+                }
+
+                // Then try to capture and analyze description image if it exists
+                const descImage = await captureScreenshot(tabs[0].id, 'div[class*="Captionstyle__StyledImage"] img');
+                if (descImage) {
+                    const descAnalysis = await analyzeDescriptionImage(descImage);
+                    finalResult.descriptionResult = descAnalysis;
+                }
+
+                // Send combined results
                 chrome.runtime.sendMessage({
                     type: 'analysisResult',
-                    result: analysis
+                    result: finalResult
                 });
             } catch (error) {
                 chrome.runtime.sendMessage({

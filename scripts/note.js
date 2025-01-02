@@ -87,3 +87,13 @@ if (grid) {
     console.log('Available elements with similar classes:', document.querySelectorAll('div[class*="ObjectIdentification"]'));
 }
 
+Select images in new pahe 
+
+const containers = document.querySelectorAll('.container-inline-block');
+const startIndex = 1, numberOfSelections = 5;
+
+[...containers].slice(startIndex, startIndex + numberOfSelections).forEach(container => {
+    const img = container.querySelector('img.upload-tile__thumbnail');
+    img?.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+    console.log(`Selected image in container at index ${[...containers].indexOf(container)}`);
+});

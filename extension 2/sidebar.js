@@ -1,3 +1,4 @@
+// sidebar.js
 document.addEventListener('DOMContentLoaded', function() {
     const apiKeyInput = document.getElementById('apiKey');
     const saveKeyBtn = document.getElementById('saveKey');
@@ -18,14 +19,19 @@ document.addEventListener('DOMContentLoaded', function() {
         if (apiKey) {
             chrome.storage.local.set({ geminiApiKey: apiKey }, function() {
                 statusDiv.textContent = 'API key saved!';
-                setTimeout(() => statusDiv.textContent = '', 2000);
+                statusDiv.className = 'text-green-600';
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                    statusDiv.className = '';
+                }, 2000);
             });
         }
     });
 
     // Capture and analyze button
     captureBtn.addEventListener('click', function() {
-        statusDiv.textContent = 'Capturing screenshot...';
+        statusDiv.textContent = 'Analyzing images...';
+        statusDiv.className = 'text-blue-600';
         
         // Send message to content script to capture screenshot
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
@@ -37,10 +43,39 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
         if (message.type === 'analysisResult') {
             statusDiv.textContent = 'Analysis complete!';
-            resultDiv.textContent = message.result;
+            statusDiv.className = 'text-green-600';
+            displayResults(resultDiv, message.result);
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = '';
+            }, 2000);
         } else if (message.type === 'error') {
-            statusDiv.className = 'error';
             statusDiv.textContent = 'Error: ' + message.error;
+            statusDiv.className = 'text-red-600';
         }
     });
+
+    function displayResults(resultDiv, data) {
+        let html = '';
+        
+        if (data.gridResult) {
+            html += `
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Cat Images:</label>
+                    <div class="p-3 bg-gray-50 rounded border border-gray-200">${data.gridResult}</div>
+                </div>
+            `;
+        }
+        
+        if (data.descriptionResult) {
+            html += `
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Image Description:</label>
+                    <div class="p-3 bg-gray-50 rounded border border-gray-200">${data.descriptionResult}</div>
+                </div>
+            `;
+        }
+
+        resultDiv.innerHTML = html;
+    }
 });

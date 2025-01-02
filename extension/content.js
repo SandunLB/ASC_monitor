@@ -1,3 +1,4 @@
+// content.js
 function getButtonValue() {
   const button = document.querySelector('[data-t="content-filter-menu"]');
   const buttonText = button?.querySelector('.button__text')?.textContent || '';
