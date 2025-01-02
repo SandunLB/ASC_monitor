@@ -41,6 +41,38 @@ async function captureScreenshot(tabId, selector) {
     }
 }
 
+async function clickGridImages(tabId, indices) {
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            func: (indices) => {
+                // First click the grid images
+                const grid = document.querySelector('[class*="ObjectIdentificationstyle__ObjectIdentificationGrid"]');
+                if (grid) {
+                    const images = grid.querySelectorAll('img');
+                    indices.forEach(index => images[index - 1]?.click());
+                    
+                    // Then click the verify button after a short delay
+                    setTimeout(() => {
+                        const verifyButton = document.querySelector('button[data-t="send-moderation-button"]');
+                        if (verifyButton) {
+                            verifyButton.click();
+                        } else {
+                            console.error("Verify button not found");
+                        }
+                    }, 500); // 500ms delay to ensure images are clicked first
+                } else {
+                    console.error("Grid element not found.");
+                }
+            },
+            args: [indices]
+        });
+    } catch (error) {
+        console.error('Click error:', error);
+        throw error;
+    }
+}
+
 async function analyzeGridImage(base64Image) {
     try {
         const apiKey = await new Promise((resolve) => {
@@ -104,15 +136,21 @@ async function analyzeGridImage(base64Image) {
         // Clean up the response
         result = result.replace(/\s+/g, ''); // Remove whitespace
 
-        // Validate the response format
+        // Extract numbers from the response
         const numbers = result.match(/\d+/g);
         if (numbers) {
-            // Sort numbers to ensure they're in order
+            // Sort numbers and return both formatted string and array
             const sortedNumbers = numbers.map(Number).sort((a, b) => a - b);
-            return `(${sortedNumbers.join(',')})`;
+            return {
+                formatted: `(${sortedNumbers.join(',')})`,
+                indices: sortedNumbers
+            };
         }
 
-        return result;
+        return {
+            formatted: result,
+            indices: []
+        };
     } catch (error) {
         throw error;
     }
@@ -189,7 +227,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 
                 if (gridImage) {
                     const gridAnalysis = await analyzeGridImage(gridImage);
-                    finalResult.gridResult = gridAnalysis;
+                    finalResult.gridResult = gridAnalysis.formatted;
+                    
+                    // Click the images based on the analysis result
+                    await clickGridImages(tabs[0].id, gridAnalysis.indices);
                 }
 
                 // Then try to capture and analyze description image if it exists
