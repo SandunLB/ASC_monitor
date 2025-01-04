@@ -45,14 +45,30 @@ async function clickGridImages(tabId, indices) {
     try {
         await chrome.scripting.executeScript({
             target: { tabId: tabId },
-            func: (indices) => {
-                // First click the grid images
+            func: async (indices) => {
                 const grid = document.querySelector('[class*="ObjectIdentificationstyle__ObjectIdentificationGrid"]');
                 if (grid) {
                     const images = grid.querySelectorAll('img');
-                    indices.forEach(index => images[index - 1]?.click());
                     
-                    // Then click the verify button after a short delay
+                    // Create a function for random delayed clicking
+                    const randomDelay = () => {
+                        const min = 300;
+                        const max = 1000;
+                        return new Promise(resolve => 
+                            setTimeout(resolve, Math.floor(Math.random() * (max - min + 1) + min))
+                        );
+                    };
+                    
+                    // Click each image with random delay
+                    for (let index of indices) {
+                        const img = images[index - 1];
+                        if (img) {
+                            img.click();
+                            await randomDelay(); // Wait random time between 300ms and 1000ms
+                        }
+                    }
+                    
+                    // Click verify button after all images are clicked
                     setTimeout(() => {
                         const verifyButton = document.querySelector('button[data-t="send-moderation-button"]');
                         if (verifyButton) {
@@ -60,7 +76,7 @@ async function clickGridImages(tabId, indices) {
                         } else {
                             console.error("Verify button not found");
                         }
-                    }, 500); // 500ms delay to ensure images are clicked first
+                    }, 500);
                 } else {
                     console.error("Grid element not found.");
                 }
@@ -69,6 +85,62 @@ async function clickGridImages(tabId, indices) {
         });
     } catch (error) {
         console.error('Click error:', error);
+        throw error;
+    }
+}
+
+async function updateDescription(tabId, description) {
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            func: (description) => {
+                function updateTextareaState(newValue) {
+                    const textarea = document.querySelector('textarea[aria-label="Caption textarea"]');
+                    if (!textarea) {
+                        console.error('Textarea not found');
+                        return;
+                    }
+
+                    // Update value
+                    textarea.value = newValue;
+                    
+                    // Dispatch input event
+                    const inputEvent = new Event('input', { bubbles: true });
+                    textarea.dispatchEvent(inputEvent);
+                    
+                    // Dispatch change event
+                    const changeEvent = new Event('change', { bubbles: true });
+                    textarea.dispatchEvent(changeEvent);
+                }
+
+                // Remove parentheses and call the function
+                const cleanDescription = description.replace(/[()]/g, '');
+                updateTextareaState(cleanDescription);
+            },
+            args: [description]
+        });
+    } catch (error) {
+        console.error('Description update error:', error);
+        throw error;
+    }
+}
+
+async function processDescriptionWorkflow(tabId) {
+    try {
+        // Wait for description image to be visible
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Capture and analyze description image
+        const descImage = await captureScreenshot(tabId, 'div[class*="Captionstyle__StyledImage"] img');
+        if (descImage) {
+            const descAnalysis = await analyzeDescriptionImage(descImage);
+            // Update the textarea with the analysis result
+            await updateDescription(tabId, descAnalysis);
+            return descAnalysis;
+        }
+        return null;
+    } catch (error) {
+        console.error('Description workflow error:', error);
         throw error;
     }
 }
@@ -87,24 +159,33 @@ async function analyzeGridImage(base64Image) {
 
         const prompt = `
             This is a grid of 6 images (3 rows x 2 columns), numbered 1 to 6 from left to right, top to bottom.
-            Systematically check EACH image (1,2,3,4,5,6) for cats.
-            
-            Steps:
-            1. Look at image 1. Does it have a cat? Include 1 if yes.
-            2. Look at image 2. Does it have a cat? Include 2 if yes.
-            3. Look at image 3. Does it have a cat? Include 3 if yes.
-            4. Look at image 4. Does it have a cat? Include 4 if yes.
-            5. Look at image 5. Does it have a cat? Include 5 if yes.
-            6. Look at image 6. Does it have a cat? Include 6 if yes.
+            Your task is to determine which images contain cats. 
 
-            Respond ONLY with numbers in parentheses, separated by commas, for ALL images containing cats.
-            Example formats:
+            **Steps to Ensure 100% Accuracy**:
+            1. For each image (1 to 6), perform an initial analysis and record your findings.
+            2. Reanalyze the same image TWO MORE TIMES to confirm your result. If there is any doubt during any pass, mark the image as containing a cat.
+            3. After analyzing all six images, cross-check your results from all passes for consistency. If any pass suggests a cat, include the image number.
+            4. After completing all steps, respond ONLY with numbers in parentheses, separated by commas, for all images containing cats.
+
+            **Key Instructions**:
+            - Analyze each image thoroughly, taking extra time if necessary.
+            - If there is even a slight indication of a cat in an image, include that image number.
+            - Triple-check each image and prioritize accuracy over speed.
+            - Do not skip any numbers or make assumptions without direct evidence.
+
+            **Response Format**:
             - If all images have cats: (1,2,3,4,5,6)
             - If only images 1,3,5 have cats: (1,3,5)
             - If only image 4 has a cat: (4)
 
-            Important: Check each image individually and don't skip any numbers.
+            **Important**:
+            - Failure to follow these steps may lead to incorrect results.
+            - Triple-checking and cross-verification are mandatory for every image.
+            - No image should be skipped, and no assumptions should be made.
+
+            Begin the task systematically now.
         `;
+
 
         const response = await fetch(`${API_URL}?key=${apiKey}`, {
             method: 'POST',
@@ -171,10 +252,15 @@ async function analyzeDescriptionImage(base64Image) {
         const prompt = `
             View this image as if you're standing 20 meters away.
             List only the key visible elements you can see.
-            Format your response exactly like this example: (doctor,smiling,hand,headset,green)
-            Use only simple, single words separated by commas within parentheses.
-            Do not include any other text or explanations.
+            
+            **Important Instructions**:
+            - Your response MUST include AT LEAST six (6) distinct words.
+            - Format your response exactly like this example: (doctor,smiling,hand,headset,green,chair)
+            - Use only simple, single words separated by commas within parentheses.
+            - If fewer than six key elements are visible, use descriptive yet simple words to complete the response (e.g., colors, objects, or actions in the image).
+            - Do not include any other text or explanations.
         `;
+
 
         const response = await fetch(`${API_URL}?key=${apiKey}`, {
             method: 'POST',
@@ -231,13 +317,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     
                     // Click the images based on the analysis result
                     await clickGridImages(tabs[0].id, gridAnalysis.indices);
-                }
-
-                // Then try to capture and analyze description image if it exists
-                const descImage = await captureScreenshot(tabs[0].id, 'div[class*="Captionstyle__StyledImage"] img');
-                if (descImage) {
-                    const descAnalysis = await analyzeDescriptionImage(descImage);
-                    finalResult.descriptionResult = descAnalysis;
+                    
+                    // Wait for verify button click to complete and then process description
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    const descriptionResult = await processDescriptionWorkflow(tabs[0].id);
+                    if (descriptionResult) {
+                        finalResult.descriptionResult = descriptionResult;
+                    }
                 }
 
                 // Send combined results

@@ -97,3 +97,45 @@ const startIndex = 1, numberOfSelections = 5;
     img?.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
     console.log(`Selected image in container at index ${[...containers].indexOf(container)}`);
 });
+
+
+select images and click submit button
+
+const containers = document.querySelectorAll('.container-inline-block');
+const startIndex = 1, numberOfSelections = 5;
+const clickCheckboxByText = (text, delay = 0) => {
+    setTimeout(() => {
+        const checkbox = Array.from(document.querySelectorAll('label'))
+            .find(label => label.textContent.trim() === text)?.querySelector('input[type="checkbox"]');
+        checkbox?.click() && console.log(`${text} checkbox clicked!`);
+    }, delay);
+};
+
+// Select the images
+[...containers].slice(startIndex, startIndex + numberOfSelections).forEach(container => {
+    container.querySelector('img.upload-tile__thumbnail')?.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+    console.log(`Selected image in container at index ${[...containers].indexOf(container)}`);
+});
+
+// Submit and proceed with checkboxes and continue button
+setTimeout(() => {
+    const submitButton = document.querySelector('button[data-t="submit-moderation-button"]');
+    if (submitButton) {
+        submitButton.click();
+        console.log('Submit button clicked.');
+
+        setTimeout(() => {
+            // Click checkboxes with specific delays
+            clickCheckboxByText('I reviewed the submission guidelines and confirm in particular that:');
+            clickCheckboxByText('I understand that my account can be suspended if I breach the guidelines.', 500);
+
+            // Click the continue button after 1000ms
+            setTimeout(() => {
+                const continueButton = document.querySelector('button[data-t="continue-moderation-button"]');
+                continueButton ? continueButton.click() && console.log("Continue button clicked!") : console.log("Continue button not found.");
+            }, 1000);
+        }, 1000); // 1 second after submit
+    } else {
+        console.error('Submit button not found.');
+    }
+}, 1000); // 1 second delay before submit
