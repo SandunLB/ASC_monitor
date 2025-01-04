@@ -93,29 +93,57 @@ async function updateDescription(tabId, description) {
     try {
         await chrome.scripting.executeScript({
             target: { tabId: tabId },
-            func: (description) => {
-                function updateTextareaState(newValue) {
+            func: async (description) => {
+                // Helper function for random delays
+                const randomDelay = (min, max) => {
+                    return new Promise(resolve => 
+                        setTimeout(resolve, Math.floor(Math.random() * (max - min + 1) + min))
+                    );
+                };
+
+                // Function to simulate human typing
+                async function simulateHumanTyping(text) {
                     const textarea = document.querySelector('textarea[aria-label="Caption textarea"]');
                     if (!textarea) {
                         console.error('Textarea not found');
                         return;
                     }
 
-                    // Update value
-                    textarea.value = newValue;
-                    
-                    // Dispatch input event
-                    const inputEvent = new Event('input', { bubbles: true });
-                    textarea.dispatchEvent(inputEvent);
-                    
-                    // Dispatch change event
+                    let currentText = '';
+                    const cleanText = text.replace(/[()]/g, '');
+
+                    // Focus the textarea
+                    textarea.focus();
+
+                    // Type each character with random delays
+                    for (let char of cleanText) {
+                        currentText += char;
+                        textarea.value = currentText;
+
+                        // Dispatch input event
+                        const inputEvent = new Event('input', { bubbles: true });
+                        textarea.dispatchEvent(inputEvent);
+
+                        // Random delay between keystrokes (30-150ms)
+                        await randomDelay(30, 150);
+
+                        // Occasional longer pause (like human thinking)
+                        if (Math.random() < 0.1) { // 10% chance
+                            await randomDelay(400, 800);
+                        }
+                    }
+
+                    // Dispatch final change event
                     const changeEvent = new Event('change', { bubbles: true });
                     textarea.dispatchEvent(changeEvent);
+
+                    // Blur the textarea after typing
+                    await randomDelay(200, 500);
+                    textarea.blur();
                 }
 
-                // Remove parentheses and call the function
-                const cleanDescription = description.replace(/[()]/g, '');
-                updateTextareaState(cleanDescription);
+                // Execute the typing simulation
+                await simulateHumanTyping(description);
             },
             args: [description]
         });
