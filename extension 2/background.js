@@ -143,7 +143,7 @@ async function updateDescription(tabId, description) {
 
                     // Click the "Verify" button after typing and a short delay
                     setTimeout(() => {
-                        const verifyButton = document.querySelector('button[data-t="verify-button"]');
+                        const verifyButton = document.querySelector('button[data-t="captcha-caption-continue"]');
                         if (verifyButton) {
                             verifyButton.click();
                         } else {
