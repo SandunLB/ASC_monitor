@@ -140,6 +140,16 @@ async function updateDescription(tabId, description) {
                     // Blur the textarea after typing
                     await randomDelay(200, 500);
                     textarea.blur();
+
+                    // Click the "Verify" button after typing and a short delay
+                    setTimeout(() => {
+                        const verifyButton = document.querySelector('button[data-t="verify-button"]');
+                        if (verifyButton) {
+                            verifyButton.click();
+                        } else {
+                            console.error("Verify button not found");
+                        }
+                    }, 500);
                 }
 
                 // Execute the typing simulation
