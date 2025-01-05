@@ -1,0 +1,40 @@
+{
+    "manifest_version": 3,
+    "name": "Stock Monitor & Image Analyzer",
+    "version": "1.0",
+    "description": "Adobe Stock monitoring and image analysis tool using Gemini API",
+    "permissions": [
+        "activeTab",
+        "scripting",
+        "sidePanel",
+        "storage",
+        "tabs"
+    ],
+    "host_permissions": [
+        "https://contributor.stock.adobe.com/*",
+        "https://generativelanguage.googleapis.com/*"
+    ],
+    "action": {
+        "default_title": "Open Side Panel"
+    },
+    "side_panel": {
+        "default_path": "sidebar.html"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://contributor.stock.adobe.com/*"
+            ],
+            "js": ["content.js"]
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": ["html2canvas.min.js"],
+            "matches": ["https://contributor.stock.adobe.com/*"]
+        }
+    ]
+}
