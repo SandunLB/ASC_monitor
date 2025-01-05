@@ -163,22 +163,148 @@ async function updateDescription(tabId, description) {
     }
 }
 
-async function processDescriptionWorkflow(tabId) {
+async function processWorkflow(tabId) {
     try {
-        // Wait for description image to be visible
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Execute the image selection script
+        await executeImageSelectionScript(tabId);
 
-        // Capture and analyze description image
-        const descImage = await captureScreenshot(tabId, 'div[class*="Captionstyle__StyledImage"] img');
-        if (descImage) {
-            const descAnalysis = await analyzeDescriptionImage(descImage);
-            // Update the textarea with the analysis result
-            await updateDescription(tabId, descAnalysis);
-            return descAnalysis;
+        // Wait for the workflow to proceed
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        let finalResult = {};
+        let maxIterations = 10;
+        let iteration = 0;
+
+        while (iteration < maxIterations) {
+            // Check for the presence of grid images
+            const gridImage = await captureScreenshot(tabId, 'div[class*="ObjectIdentification"]');
+            if (gridImage) {
+                const gridAnalysis = await analyzeGridImage(gridImage);
+                finalResult.gridResult = gridAnalysis.formatted;
+                await clickGridImages(tabId, gridAnalysis.indices);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                iteration++;
+                continue;
+            }
+
+            // Check for the presence of description image
+            const descImage = await captureScreenshot(tabId, 'div[class*="Captionstyle__StyledImage"] img');
+            if (descImage) {
+                const descAnalysis = await analyzeDescriptionImage(descImage);
+                finalResult.descriptionResult = descAnalysis;
+                await updateDescription(tabId, descAnalysis);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                iteration++;
+                continue;
+            }
+
+            // Check for the presence of the final submit button
+            const finalSubmitButton = await checkElementExists(tabId, 'button[data-t="send-moderation-button"]');
+            if (finalSubmitButton) {
+                await clickFinalSubmitButton(tabId);
+                break;
+            }
+
+            // Wait before the next iteration
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            iteration++;
         }
-        return null;
+
+        // Send combined results
+        chrome.runtime.sendMessage({
+            type: 'analysisResult',
+            result: finalResult
+        });
     } catch (error) {
-        console.error('Description workflow error:', error);
+        console.error('Workflow error:', error);
+        throw error;
+    }
+}
+
+async function checkElementExists(tabId, selector) {
+    try {
+        const result = await chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            func: (selector) => {
+                return document.querySelector(selector) !== null;
+            },
+            args: [selector]
+        });
+
+        return result[0].result;
+    } catch (error) {
+        console.error('Element existence check error:', error);
+        return false;
+    }
+}
+
+async function executeImageSelectionScript(tabId) {
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            func: async () => {
+                const containers = document.querySelectorAll('.container-inline-block');
+                const startIndex = 1, numberOfSelections = 2;
+                const clickCheckboxByText = (text, delay = 0) => {
+                    setTimeout(() => {
+                        const checkbox = Array.from(document.querySelectorAll('label'))
+                            .find(label => label.textContent.trim() === text)?.querySelector('input[type="checkbox"]');
+                        checkbox?.click() && console.log(`${text} checkbox clicked!`);
+                    }, delay);
+                };
+
+                // Select the images
+                [...containers].slice(startIndex, startIndex + numberOfSelections).forEach(container => {
+                    container.querySelector('img.upload-tile__thumbnail')?.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+                    console.log(`Selected image in container at index ${[...containers].indexOf(container)}`);
+                });
+
+                // Submit and proceed with checkboxes and continue button
+                setTimeout(() => {
+                    const submitButton = document.querySelector('button[data-t="submit-moderation-button"]');
+                    if (submitButton) {
+                        submitButton.click();
+                        console.log('Submit button clicked.');
+
+                        setTimeout(() => {
+                            // Click checkboxes with specific delays
+                            clickCheckboxByText('I reviewed the submission guidelines and confirm in particular that:');
+                            clickCheckboxByText('I understand that my account can be suspended if I breach the guidelines.', 500);
+
+                            // Click the continue button after 1000ms
+                            setTimeout(() => {
+                                const continueButton = document.querySelector('button[data-t="continue-moderation-button"]');
+                                continueButton ? continueButton.click() && console.log("Continue button clicked!") : console.log("Continue button not found.");
+                            }, 1000);
+                        }, 1000); // 1 second after submit
+                    } else {
+                        console.error('Submit button not found.');
+                    }
+                }, 1000); // 1 second delay before submit
+            }
+        });
+    } catch (error) {
+        console.error('Image selection script error:', error);
+        throw error;
+    }
+}
+
+async function clickFinalSubmitButton(tabId) {
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            func: async () => {
+                const finalSubmitButton = document.querySelector('button[data-t="send-moderation-button"]');
+                if (finalSubmitButton) {
+                    finalSubmitButton.click();
+                    console.log('Final submit button clicked.');
+                } else {
+                    console.error('Final submit button not found.');
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Final submit button click error:', error);
         throw error;
     }
 }
@@ -340,35 +466,12 @@ async function analyzeDescriptionImage(base64Image) {
 
 // Listen for messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === "takeScreenshot") {
+    if (message.action === "startWorkflow") {
         console.log('Starting analysis process...');
         
         chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
             try {
-                // First capture and analyze grid
-                const gridImage = await captureScreenshot(tabs[0].id, 'div[class*="ObjectIdentification"]');
-                let finalResult = {};
-                
-                if (gridImage) {
-                    const gridAnalysis = await analyzeGridImage(gridImage);
-                    finalResult.gridResult = gridAnalysis.formatted;
-                    
-                    // Click the images based on the analysis result
-                    await clickGridImages(tabs[0].id, gridAnalysis.indices);
-                    
-                    // Wait for verify button click to complete and then process description
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    const descriptionResult = await processDescriptionWorkflow(tabs[0].id);
-                    if (descriptionResult) {
-                        finalResult.descriptionResult = descriptionResult;
-                    }
-                }
-
-                // Send combined results
-                chrome.runtime.sendMessage({
-                    type: 'analysisResult',
-                    result: finalResult
-                });
+                await processWorkflow(tabs[0].id);
             } catch (error) {
                 chrome.runtime.sendMessage({
                     type: 'error',

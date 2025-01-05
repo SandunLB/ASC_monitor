@@ -29,15 +29,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Capture and analyze button
-    captureBtn.addEventListener('click', function() {
-        statusDiv.textContent = 'Analyzing images...';
-        statusDiv.className = 'text-blue-600';
-        
-        // Send message to content script to capture screenshot
-        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-            chrome.tabs.sendMessage(tabs[0].id, {action: "captureScreenshot"});
-        });
-    });
+// Capture and analyze button
+captureBtn.addEventListener('click', function() {
+    statusDiv.textContent = 'Analyzing images...';
+    statusDiv.className = 'text-blue-600';
+    
+    // Send message to background script to start the workflow
+    chrome.runtime.sendMessage({action: "startWorkflow"});
+});
 
     // Listen for analysis results
     chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
