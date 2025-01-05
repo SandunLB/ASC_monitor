@@ -200,7 +200,7 @@ async function checkPageStateAndExecute(tabId) {
                 currentValue = response.value;
                 const count = parseInt(response.value.match(/\((\d+)\)/)?.[1] || '0');
                 
-                if (currentPage === 'review' && count < 50) {
+                if (currentPage === 'review' && count < 15) {
                     currentPage = 'new';
                     await switchToPage(NEW_URL);
                 } 
@@ -311,8 +311,27 @@ async function executeImageSelectionScript(tabId) {
         await chrome.scripting.executeScript({
             target: { tabId: tabId },
             func: async () => {
+                // First execute the provided script
+                ['div.text-sregular.margin-left-xsmall.left', 
+                 'div[data-t="asset-sidebar-submission-checkbox"] label', 
+                 'div.text-sregular.margin-left-xsmall.left'].forEach((selector, i) => 
+                    setTimeout(() => {
+                        const element = document.querySelector(selector);
+                        if (element) {
+                            element.click();
+                            console.log(`Clicked element with selector: ${selector}`);
+                        } else {
+                            console.error(`Element not found for selector: ${selector}`);
+                        }
+                    }, i * 500)
+                );
+
+                // Wait for the above script to complete (3 * 500ms = 1500ms + buffer)
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // Continue with the original image selection flow
                 const containers = document.querySelectorAll('.container-inline-block');
-                const startIndex = 1, numberOfSelections = 2;
+                const startIndex = 0, numberOfSelections = 1;
                 
                 const clickCheckboxByText = (text, delay = 0) => {
                     setTimeout(() => {
@@ -328,21 +347,37 @@ async function executeImageSelectionScript(tabId) {
                         ?.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
                 });
 
+                // Wait for initial selection to process
                 setTimeout(() => {
-                    const submitButton = document.querySelector('button[data-t="submit-moderation-button"]');
-                    if (submitButton) {
-                        submitButton.click();
-
-                        setTimeout(() => {
-                            clickCheckboxByText('I reviewed the submission guidelines and confirm in particular that:');
-                            clickCheckboxByText('I understand that my account can be suspended if I breach the guidelines.', 500);
-
-                            setTimeout(() => {
-                                const continueButton = document.querySelector('button[data-t="continue-moderation-button"]');
-                                if (continueButton) continueButton.click();
-                            }, 1000);
-                        }, 1000);
+                    // Click the sidebar submission checkbox
+                    const sidebarCheckbox = document.querySelector('div[data-t="asset-sidebar-submission-checkbox"] label');
+                    if (sidebarCheckbox) {
+                        sidebarCheckbox.click();
+                        console.log('Sidebar checkbox clicked');
                     }
+
+                    // Wait before clicking submit button
+                    setTimeout(() => {
+                        const submitButton = document.querySelector('button[data-t="submit-moderation-button"]');
+                        if (submitButton) {
+                            submitButton.click();
+                            console.log('Submit button clicked');
+
+                            // Handle the post-submit actions
+                            setTimeout(() => {
+                                clickCheckboxByText('I reviewed the submission guidelines and confirm in particular that:');
+                                clickCheckboxByText('I understand that my account can be suspended if I breach the guidelines.', 500);
+
+                                setTimeout(() => {
+                                    const continueButton = document.querySelector('button[data-t="continue-moderation-button"]');
+                                    if (continueButton) {
+                                        continueButton.click();
+                                        console.log('Continue button clicked');
+                                    }
+                                }, 1000);
+                            }, 1000);
+                        }
+                    }, 1000);
                 }, 1000);
             }
         });
