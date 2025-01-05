@@ -5,6 +5,7 @@ const NEW_URL = 'https://contributor.stock.adobe.com/en/uploads';
 let currentValue = '';
 let currentPage = 'review';
 let isProcessing = false;
+let lastRefreshTime = 0;
 
 // Toggle side panel when extension icon is clicked
 chrome.action.onClicked.addListener(async (tab) => {
@@ -200,7 +201,7 @@ async function checkPageStateAndExecute(tabId) {
                 currentValue = response.value;
                 const count = parseInt(response.value.match(/\((\d+)\)/)?.[1] || '0');
                 
-                if (currentPage === 'review' && count < 15) {
+                if (currentPage === 'review' && count < 20) {
                     currentPage = 'new';
                     await switchToPage(NEW_URL);
                 } 
@@ -617,7 +618,28 @@ setInterval(() => {
     if (!isProcessing) {
         chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
             if (tabs[0]) {
-                await checkPageStateAndExecute(tabs[0].id);
+                // First, try to get the current count
+                const response = await chrome.tabs.sendMessage(tabs[0].id, {
+                    action: "getButtonValue"
+                });
+                
+                if (response) {
+                    const count = parseInt(response.value.match(/\((\d+)\)/)?.[1] || '0');
+                    const currentTime = Date.now();
+                    
+                    // If count is high and 10 minutes have passed since last refresh
+                    if (count >= 20 && currentTime - lastRefreshTime >= 600000) {
+                        console.log('Refreshing page due to high count:', count);
+                        await chrome.tabs.reload(tabs[0].id);
+                        lastRefreshTime = currentTime;
+                        
+                        // Wait 5 seconds after refresh before checking state
+                        setTimeout(() => checkPageStateAndExecute(tabs[0].id), 5000);
+                    } else {
+                        // Normal state check
+                        await checkPageStateAndExecute(tabs[0].id);
+                    }
+                }
             }
         });
     }

@@ -1,67 +1,243 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Stock Monitor & Analyzer</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adobe Stock Automator - Terminal Edition</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap');
+
+        :root {
+            --bg-color: #1e1e1e;
+            --text-color: #00ff00;
+            --accent-color: #4f46e5;
+            --border-color: #3a3a3a;
+            --input-bg: #2a2a2a;
+            --card-bg: #252525;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            width: 300px;
-            padding: 16px;
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: 'Fira Code', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
         }
-        .fade-in {
-            animation: fadeIn 0.5s;
+
+        .terminal {
+            max-width: 800px;
+            width: 100%;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+            overflow: hidden;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+
+        .terminal-header {
+            background-color: var(--border-color);
+            padding: 0.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .terminal-title {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .terminal-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .terminal-button {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .close { background-color: #ff5f56; }
+        .minimize { background-color: #ffbd2e; }
+        .maximize { background-color: #27c93f; }
+
+        .terminal-content {
+            padding: 1.5rem;
+        }
+
+        .card {
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent-color);
+            margin-bottom: 1rem;
+        }
+
+        h2::before {
+            content: "$ ";
+            color: var(--text-color);
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            padding: 0.5rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            color: var(--text-color);
+            margin-bottom: 1rem;
+        }
+
+        input[type="password"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+        }
+
+        button {
+            width: 100%;
+            padding: 0.5rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--bg-color);
+            background-color: var(--text-color);
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #00cc00;
+            transform: translateY(-2px);
+        }
+
+        button:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0, 255, 0, 0.5);
+        }
+
+        .text-sm {
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        #status, #error {
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-top: 1rem;
+            padding: 0.5rem;
+            border-radius: 3px;
+        }
+
+        #status {
+            background-color: rgba(0, 255, 0, 0.1);
+            color: #00ff00;
+        }
+
+        #error {
+            background-color: rgba(255, 0, 0, 0.1);
+            color: #ff0000;
+        }
+
+        .blink {
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 1rem;
+            }
+
+            .terminal {
+                border-radius: 0;
+            }
+
+            .terminal-content {
+                padding: 1rem;
+            }
         }
     </style>
 </head>
-<body class="bg-gray-50">
-    <div class="space-y-4">
-        <!-- API Key Section -->
-        <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div class="space-y-3">
-                <h2 class="text-lg font-semibold text-gray-800">API Configuration</h2>
+<body>
+    <div class="terminal">
+        <div class="terminal-header">
+            <div class="terminal-buttons">
+                <div class="terminal-button close"></div>
+                <div class="terminal-button minimize"></div>
+                <div class="terminal-button maximize"></div>
+            </div>
+            <div class="terminal-title">Adobe Stock Automator</div>
+        </div>
+        <div class="terminal-content">
+            <!-- API Key Section -->
+            <div class="card">
+                <h2>API Configuration</h2>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
-                    <input type="password" id="apiKey" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" 
-                           placeholder="Enter your API key">
+                    <label for="apiKey">Gemini API Key:</label>
+                    <input type="password" id="apiKey" placeholder="Enter your API key">
+                    <button id="saveKey">Save API Key</button>
                 </div>
-                <button id="saveKey" 
-                        class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                    Save API Key
-                </button>
             </div>
-        </div>
 
-        <!-- Status Section -->
-        <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <h2 class="text-lg font-semibold text-gray-800 mb-3">Status</h2>
-            <div class="space-y-2">
-                <div id="accountInfo" class="text-sm text-gray-600"></div>
-                <div id="currentPage" class="text-sm text-gray-600"></div>
-                <div id="buttonValue" class="text-sm text-gray-600"></div>
-                <div id="lastUpdate" class="text-sm text-gray-600"></div>
+            <!-- Status Section -->
+            <div class="card">
+                <h2>System Status</h2>
+                <div id="accountInfo" class="text-sm"></div>
+                <div id="currentPage" class="text-sm"></div>
+                <div id="buttonValue" class="text-sm"></div>
+                <div id="lastUpdate" class="text-sm"></div>
             </div>
-        </div>
 
-        <!-- Analysis Results Section -->
-        <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <h2 class="text-lg font-semibold text-gray-800 mb-3">Analysis Results</h2>
-            <div id="analysisResults" class="space-y-2">
-                <div id="gridResult" class="text-sm text-gray-600"></div>
-                <div id="descriptionResult" class="text-sm text-gray-600"></div>
+            <!-- Analysis Results Section -->
+            <div class="card">
+                <h2>Analysis Output</h2>
+                <div id="analysisResults">
+                    <div id="gridResult" class="text-sm"></div>
+                    <div id="descriptionResult" class="text-sm"></div>
+                </div>
             </div>
+
+            <!-- Status Messages -->
+            <div id="status"></div>
+
+            <!-- Error Messages -->
+            <div id="error"></div>
+
+            <div class="blink">_</div>
         </div>
-
-        <!-- Status Messages -->
-        <div id="status" class="text-center text-sm"></div>
-
-        <!-- Error Messages -->
-        <div id="error" class="text-center text-sm text-red-600"></div>
     </div>
 
     <script src="sidebar.js"></script>

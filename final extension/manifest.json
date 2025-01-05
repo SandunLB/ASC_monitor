@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "Stock Monitor & Image Analyzer",
+    "name": "Adobe Stock Automator",
     "version": "1.0",
     "description": "Adobe Stock monitoring and image analysis tool using Gemini API",
     "permissions": [
