@@ -1,1 +1,1 @@
-ADOBE STOCK REVIEW IMAGE Automator
+ADOBE STOCK Contributor auto image uploader
