@@ -1,1 +1,1 @@
-ADOBE STOCK REVIEW IMAGE COUNT MONITOR + Automator
+ADOBE STOCK Contributor auto image uploader
