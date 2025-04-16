@@ -1,1 +1,1 @@
-ADOBE STOCK Contributor auto image uploader
+ADOBE STOCK Contributor auto image uploader :)
